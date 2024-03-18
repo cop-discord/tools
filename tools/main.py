@@ -37,7 +37,7 @@ async def timeit():
     start = datetime.now().timestamp()
     timer = Timer(start = start)
     try:
-        yield Timer(start = start)
+        yield timer
     finally:
         end = datetime.now().timestamp()
         elapsed = end - start
