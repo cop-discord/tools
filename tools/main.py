@@ -188,17 +188,11 @@ def limit_calls(freq: float = 1) -> Callable[[Callable[..., Coroutine[Any, Any, 
 
     return decorator
 
-def thread(func: Callable):
-    """Asynchronously run function `func` in a separate thread"""
-
-    @wraps(func)
+def threaded(func: Callable):
+    """Runs the function decorated in a seperate thread"""
     async def wrapper(*args, **kwargs):
-        partial = partial(func, *args, **kwargs)
-        coro = to_thread(partial)
-        return await coro
-
+        return await to_thread(func, *args, **kwargs)
     return wrapper
-
 
 def reload(module: ModuleType, reload_all, reloaded) -> None:
     # credits to melanie redbot skid bot for the function lol
