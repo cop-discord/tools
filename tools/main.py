@@ -15,13 +15,22 @@ from .file_types import FileParser, FileType
 from dataclasses import dataclass
 from loguru import logger
 
-
+GLOBALS = {}
 T = TypeVar("T")
-logger = getLogger(__name__)
 AsyncCallableResult_T = TypeVar("AsyncCallableResult_T")
 AsyncCallable_T = Callable[..., Awaitable[AsyncCallableResult_T]]
 DecoratedFunc = TypeVar("DecoratedFunc", bound=AsyncCallable_T)
 rl = discord.ExpiringDictionary()
+
+def set_global(key: str, value: Any):
+    GLOBALS[key] = value
+    return value
+
+def get_global(key: str):
+    if _ := GLOBALS.get(key):
+        return _
+    else:
+        raise ValueError(f"No Global found under {key} please set it using set_global(key, value)")
 
 def get_ts(sec: int = 0):
     ts = datetime.now() + timedelta(seconds = sec)
@@ -110,7 +119,10 @@ def format_int(n: Union[float, str, int]) -> str:
     formatted_amount = ",".join(chunks[::-1])
     return f"{neg}{formatted_amount}.{decimal}"
 
-
+def humanize_int(n: Union[int, str], format: str = "%.1f"):
+    from humanize import intword
+    _ = intword(n, format)
+    return _.replace(" billion","b").replace(" million","m").replace(" thousand","k").replace(" trillion","t").replace(" quadrillion","qa").replace(" quintillion","qi").replace(" sextillion","sx").replace(" septillion","sp").replace(" octillion","o").replace(" nonillion","n").replace(" googol","g")
 
 def retry(retries: int = 0, delay: int = 0, timeout: Optional[int] =None):
     """AutoMatically retry a callable object with an optional pause
@@ -221,8 +233,7 @@ def thread(func: Callable):
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        partial = partial(func, *args, **kwargs)
-        coro = to_thread(partial)
+        coro = to_thread(func, *args, **kwargs)
         return await coro
 
     return wrapper
