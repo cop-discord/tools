@@ -4,22 +4,35 @@ from typing import Coroutine, Callable, Any, DefaultDict, TypeVar, Optional, Uni
 from pathlib import Path
 from anyio import Path as AsyncPath
 from collections import defaultdict
-from asyncio import Lock, sleep, to_thread, wait_for, ensure_future
-import arrow, traceback, aiohttp
-from datetime import datetime
+from asyncio import Lock, sleep, to_thread, wait_for, ensure_future, gather, run
+import arrow, discord, traceback, aiohttp
+from datetime import datetime, timedelta
 from functools import wraps, partial
 from contextlib import asynccontextmanager
 from tuuid import tuuid
 from cashews._typing import KeyOrTemplate
-from cashews.key import get_cache_key
 from .file_types import FileParser, FileType
 from dataclasses import dataclass
+from loguru import logger
+
 
 T = TypeVar("T")
 logger = getLogger(__name__)
 AsyncCallableResult_T = TypeVar("AsyncCallableResult_T")
 AsyncCallable_T = Callable[..., Awaitable[AsyncCallableResult_T]]
 DecoratedFunc = TypeVar("DecoratedFunc", bound=AsyncCallable_T)
+rl = discord.ExpiringDictionary()
+
+def get_ts(sec: int = 0):
+    ts = datetime.now() + timedelta(seconds = sec)
+    return int(ts.timestamp())
+
+def get_cache_key(key: KeyOrTemplate, func: DecoratedFunc, *args, **kwargs):
+    import inspect
+    _ = inspect.getcallargs(func, *args, **kwargs)
+    if _.get('kwargs'):
+        return key.format_map(_['kwargs'])
+    return key.format_map(_)
 
 def get_logger():
     return logger
@@ -149,14 +162,13 @@ def lock(key: KeyOrTemplate, wait=True):
 
     def decorating_function(func: DecoratedFunc) -> DecoratedFunc:
         global METHOD_LOCKERS
-        value = get_cache_key(func)
-        locker = METHOD_LOCKERS.get(func)
-        if not locker:
-            locker = Lock()
-            METHOD_LOCKERS[key] = locker
-
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            value = get_cache_key(key, func, *args, **kwargs)
+            locker = METHOD_LOCKERS.get(func)
+            if not locker:
+                locker = Lock()
+                METHOD_LOCKERS[key] = locker
             if not wait and locker.locked():
                 return
             try:
@@ -166,6 +178,22 @@ def lock(key: KeyOrTemplate, wait=True):
                 locker.release()
         return wrapper
     return decorating_function
+
+def ratelimit(key: KeyOrTemplate, amount: int, timespan: int, wait: Optional[bool] = False):
+    assert isinstance(key, str)
+    def decorator(func: DecoratedFunc) -> DecoratedFunc:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            value = get_cache_key(key, func, *args, **kwargs)
+            _rl = await rl.ratelimit(value, amount, timespan)
+            if _rl != True: return await func(*args, **kwargs)
+            else:
+                if wait == True:
+                    await sleep(rl.time_remaining(value))
+                    return await func(*args, **kwargs)
+                return
+        return wrapper
+    return decorator
 
 def limit_calls(freq: float = 1) -> Callable[[Callable[..., Coroutine[Any, Any, T]]], Callable[..., Coroutine[Any, Any, T]]]:
     """Only allows a function to be called x amount of times at a time and will sleep until the ones that are running are finished"""
@@ -188,11 +216,17 @@ def limit_calls(freq: float = 1) -> Callable[[Callable[..., Coroutine[Any, Any, 
 
     return decorator
 
-def threaded(func: Callable):
-    """Runs the function decorated in a seperate thread"""
+def thread(func: Callable):
+    """Asynchronously run function `func` in a separate thread"""
+
+    @wraps(func)
     async def wrapper(*args, **kwargs):
-        return await to_thread(func, *args, **kwargs)
+        partial = partial(func, *args, **kwargs)
+        coro = to_thread(partial)
+        return await coro
+
     return wrapper
+
 
 def reload(module: ModuleType, reload_all, reloaded) -> None:
     # credits to melanie redbot skid bot for the function lol
