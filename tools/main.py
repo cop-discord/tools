@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from functools import wraps, partial
 from contextlib import asynccontextmanager
 from tuuid import tuuid
+from cashews.keys import get_cache_key as _get_cache_key
 from cashews._typing import KeyOrTemplate
 from .file_types import FileParser, FileType
 from dataclasses import dataclass
@@ -37,11 +38,7 @@ def get_ts(sec: int = 0):
     return int(ts.timestamp())
 
 def get_cache_key(key: KeyOrTemplate, func: DecoratedFunc, *args, **kwargs):
-    import inspect
-    _ = inspect.getcallargs(func, *args, **kwargs)
-    if _.get('kwargs'):
-        return key.format_map(_['kwargs'])
-    return key.format_map(_)
+    return _get_cache_key(func, key, args, kwargs)
 
 def get_logger():
     return logger
