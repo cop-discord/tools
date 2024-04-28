@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 with open("requirements.txt",'r') as file:
     requirements = file.readlines()
 
-packages = ['tools']
+packages = ['tools', 'tools.file_types']
 readme = open('README.md', 'r').read()
 
 setup(
     name='tools',
     version='0.0.1',
-    packages=find_packages(),
+    packages=packages,
     author='Cop',
     author_email='cop@catgir.ls',
     description='A collection of useful tools',
