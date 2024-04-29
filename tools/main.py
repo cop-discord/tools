@@ -174,10 +174,10 @@ def lock(key: KeyOrTemplate, wait=True):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             value = get_cache_key(key, func, *args, **kwargs)
-            locker = METHOD_LOCKERS.get(func)
+            locker = METHOD_LOCKERS.get(value)
             if not locker:
                 locker = Lock()
-                METHOD_LOCKERS[key] = locker
+                METHOD_LOCKERS[value] = locker
             if not wait and locker.locked():
                 return
             try:
