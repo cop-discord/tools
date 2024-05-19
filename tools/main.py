@@ -4,18 +4,19 @@ from typing import Coroutine, Callable, Any, DefaultDict, TypeVar, Optional, Uni
 from pathlib import Path
 from anyio import Path as AsyncPath
 from collections import defaultdict
-from asyncio import Lock, sleep, to_thread, wait_for, ensure_future, gather, run
-import arrow, discord, traceback, aiohttp
+from asyncio import Lock, sleep, to_thread, wait_for, ensure_future, gather, get_running_loop
+import arrow, discord, traceback, aiohttp, concurrent.futures
 from datetime import datetime, timedelta
 from functools import wraps, partial
 from contextlib import asynccontextmanager
 from tuuid import tuuid
-from cashews.keys import get_cache_key as _get_cache_key
+from cashews.key import get_cache_key as _get_cache_key
 from cashews._typing import KeyOrTemplate
 from .file_types import FileParser, FileType
 from dataclasses import dataclass
 from loguru import logger
 
+worker = concurrent.futures.ThreadPoolExecutor(max_workers = 2) #this sets the max threads for threaded operations
 GLOBALS = {}
 T = TypeVar("T")
 AsyncCallableResult_T = TypeVar("AsyncCallableResult_T")
@@ -230,8 +231,8 @@ def thread(func: Callable):
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        coro = to_thread(func, *args, **kwargs)
-        return await coro
+        loop = get_running_loop()
+        return await loop.run_in_executor(worker, func, *args, **kwargs)
 
     return wrapper
 
