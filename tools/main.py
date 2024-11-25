@@ -16,7 +16,9 @@ from dataclasses import dataclass
 from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
 from .ratelimiter import ExpiringDictionary
+from os import environ
 
+THREAD_COUNT = environ.get("thread_count", 1)
 GLOBALS = {}
 T = TypeVar("T")
 AsyncCallableResult_T = TypeVar("AsyncCallableResult_T")
@@ -31,7 +33,7 @@ class ExecutorHolder:
     @classmethod
     def get_executor(cls):
         if cls._executor is None:
-            cls._executor = ThreadPoolExecutor(max_workers=1)
+            cls._executor = ThreadPoolExecutor(max_workers=THREAD_COUNT)
         return cls._executor
 
 
@@ -249,6 +251,14 @@ def limit_calls(freq: float = 1) -> Callable[[Callable[..., Coroutine[Any, Any, 
 
 
 def thread(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Runs an event loop blocking function in a thread worker with 1 maximum worker 
+
+    Args:
+        func (Callable[..., Any]): _description_
+
+    Returns:
+        Callable[..., Any]: _description_
+    """
     @wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
