@@ -1,28 +1,48 @@
 from types import ModuleType
-from logging import getLogger
 from typing import Coroutine, Callable, Any, DefaultDict, TypeVar, Optional, Union, AsyncGenerator, Awaitable
-from pathlib import Path
 from anyio import Path as AsyncPath
 from collections import defaultdict
-from asyncio import Lock, sleep, to_thread, wait_for, ensure_future, gather, get_running_loop
-import arrow, discord, traceback, aiohttp, concurrent.futures
+from asyncio import Lock, sleep, wait_for, get_running_loop, get_event_loop
+import arrow
+import discord
+import traceback
 from datetime import datetime, timedelta
-from functools import wraps, partial
+from functools import wraps
 from contextlib import asynccontextmanager
-from tuuid import tuuid
 from cashews.key import get_cache_key as _get_cache_key
 from cashews._typing import KeyOrTemplate
-from .file_types import FileParser, FileType
+from .file_types import FileParser
 from dataclasses import dataclass
 from loguru import logger
+from concurrent.futures import ThreadPoolExecutor
+from .ratelimiter import ExpiringDictionary
 
-worker = concurrent.futures.ThreadPoolExecutor(max_workers = 2) #this sets the max threads for threaded operations
 GLOBALS = {}
 T = TypeVar("T")
 AsyncCallableResult_T = TypeVar("AsyncCallableResult_T")
 AsyncCallable_T = Callable[..., Awaitable[AsyncCallableResult_T]]
 DecoratedFunc = TypeVar("DecoratedFunc", bound=AsyncCallable_T)
 rl = discord.ExpiringDictionary()
+
+
+class ExecutorHolder:
+    _executor: Optional[ThreadPoolExecutor] = None
+
+    @classmethod
+    def get_executor(cls):
+        if cls._executor is None:
+            cls._executor = ThreadPoolExecutor(max_workers=1)
+        return cls._executor
+
+
+class RatelimiterHolder:
+    _ratelimiter: Optional[ExpiringDictionary] = None
+
+    @classmethod
+    def get_ratelimiter(cls):
+        if cls._ratelimiter is None:
+            cls._ratelimiter = ExpiringDictionary()
+        return cls._ratelimiter
 
 def set_global(key: str, value: Any):
     GLOBALS[key] = value
@@ -71,7 +91,7 @@ async def borrow_temp_file(
     filepath: Optional[str] = None,
     base="/tmp"
 ) -> AsyncGenerator[Union[AsyncPath, None], None]:
-    if url == None:
+    if url is None:
         if filepath.endswith('/'):
             filepath = filepath[:-1]
         url = filepath
@@ -84,7 +104,7 @@ async def borrow_temp_file(
         await file.unlink(missing_ok=True)
         try:
             del parser
-        except:
+        except Exception:
             pass
 
 def format_int(n: Union[float, str, int]) -> str:
@@ -196,9 +216,10 @@ def ratelimit(key: KeyOrTemplate, amount: int, timespan: int, wait: Optional[boo
         async def wrapper(*args, **kwargs):
             value = get_cache_key(key, func, *args, **kwargs)
             _rl = await rl.ratelimit(value, amount, timespan)
-            if _rl != True: return await func(*args, **kwargs)
+            if _rl is not True: 
+                return await func(*args, **kwargs)
             else:
-                if wait == True:
+                if wait is True:
                     await sleep(rl.time_remaining(value))
                     return await func(*args, **kwargs)
                 return
@@ -226,14 +247,16 @@ def limit_calls(freq: float = 1) -> Callable[[Callable[..., Coroutine[Any, Any, 
 
     return decorator
 
-def thread(func: Callable):
-    """Asynchronously run function `func` in a separate thread"""
 
+def thread(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
-    async def wrapper(*args, **kwargs):
-        loop = get_running_loop()
-        return await loop.run_in_executor(worker, func, *args, **kwargs)
-
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            loop = get_running_loop()
+        except RuntimeError:
+            loop = get_event_loop()
+        executor = ExecutorHolder.get_executor()
+        return await loop.run_in_executor(executor, func, *args, **kwargs)
     return wrapper
 
 
@@ -279,7 +302,6 @@ def deepreload(module: ModuleType, reload_external_modules: bool = False) -> Non
 
         Whether to reload all referenced modules, including external ones which
         aren't submodules of ``module``.
-
     """
     reload(module, reload_external_modules, set())
 
