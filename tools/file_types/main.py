@@ -19,16 +19,12 @@ class FileParser:
         self.files = data
 
     async def clean_memory(self):
-        if self.pop_after != True:
+        if self.pop_after is not True:
             return
         await sleep(5)
         try:
             del self.files
-        except:
-            pass
-        try:
-            del data
-        except:
+        except Exception:
             pass
 
     async def get_extension(self, url: str) -> Optional[FileType]:
