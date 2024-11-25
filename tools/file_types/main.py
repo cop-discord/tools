@@ -56,5 +56,4 @@ def guess_extension(url: str) -> Optional[FileType]:
     _path.name
     mime = data.get(_path.suffix)
     ext = _path.suffix
-    del data
     return FileType(name=_path.name, mime=mime, extension=ext)
