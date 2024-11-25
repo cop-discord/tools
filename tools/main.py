@@ -24,7 +24,6 @@ T = TypeVar("T")
 AsyncCallableResult_T = TypeVar("AsyncCallableResult_T")
 AsyncCallable_T = Callable[..., Awaitable[AsyncCallableResult_T]]
 DecoratedFunc = TypeVar("DecoratedFunc", bound=AsyncCallable_T)
-rl = discord.ExpiringDictionary()
 
 
 class ExecutorHolder:
@@ -45,6 +44,8 @@ class RatelimiterHolder:
         if cls._ratelimiter is None:
             cls._ratelimiter = ExpiringDictionary()
         return cls._ratelimiter
+    
+rl = RatelimiterHolder.get_ratelimiter()
 
 def set_global(key: str, value: Any):
     GLOBALS[key] = value
