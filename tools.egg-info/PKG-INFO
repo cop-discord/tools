@@ -1,0 +1,25 @@
+Metadata-Version: 2.1
+Name: tools
+Version: 0.0.1
+Summary: A collection of useful tools
+Home-page: https://github.com/cop-discord/tools
+Author: Cop
+Author-email: cop@catgir.ls
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Description-Content-Type: text/x-rst
+License-File: LICENSE
+Requires-Dist: anyio
+Requires-Dist: arrow
+Requires-Dist: aiohttp
+Requires-Dist: tuuid
+Requires-Dist: cashews
+Requires-Dist: tornado
+Requires-Dist: pydantic
+
+# A Collection of useful tools that I use on a day to day basis for both async synchronization and debugging
